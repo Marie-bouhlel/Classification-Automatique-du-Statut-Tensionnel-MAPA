@@ -1,0 +1,17 @@
+name: mapaai
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pandas
+  - numpy
+  - scikit-learn
+  - joblib
+  - flask
+  - flask-cors
+  - pypdf
+  - pymupdf
+  - xgboost
+  - matplotlib
+  - seaborn
+  - pip

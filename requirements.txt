@@ -1,0 +1,12 @@
+pandas
+numpy
+scikit-learn
+joblib
+flask
+flask-cors
+pypdf
+PyMuPDF
+xgboost
+matplotlib
+seaborn
+streamlit
