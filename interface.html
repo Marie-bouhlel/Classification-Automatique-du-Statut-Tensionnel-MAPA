@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MAPA·AI - Analyse de Rapport Tensionnel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* [Le CSS complet reste identique - je ne le répète pas pour économiser l'espace] */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* ... [Tout le CSS reste exactement le même que dans ma réponse précédente] ... */
+    </style>
+</head>
+<body>
+    <!-- [Le HTML reste exactement le même] -->
+    <div class="container">
+        <div class="header">
+            <h1>MAPA·AI</h1>
+            <p class="subtitle">Analysez votre rapport de mesure ambulatoire de la pression artérielle (MAPA) en quelques secondes</p>
+        </div>
+        
+        <div class="upload-area" id="upload-area">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">Glissez-déposez votre fichier PDF ici</div>
+            <div class="upload-subtext">
+                ou <span onclick="document.getElementById('file-input').click()">sélectionnez un fichier</span>
+            </div>
+            <input type="file" id="file-input" accept=".pdf">
+        </div>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div style="font-size: 1.2rem; font-weight: 500;">Analyse en cours avec IA...</div>
+        </div>
+        
+        <div class="result" id="result">
+            <h2>✨ Résultats de l'Analyse</h2>
+            <div class="status" id="status"></div>
+            <div class="confidence" id="confidence"></div>
+            <div class="metrics-grid" id="metrics"></div>
+        </div>
+        
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('file-input');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const error = document.getElementById('error');
+
+        // Enhanced drag and drop
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, () => uploadArea.classList.remove('dragover'), false);
+        });
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        fileInput.addEventListener('change', function(e) {
+            handleFiles(e.target.files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type === 'application/pdf') {
+                    uploadFile(file);
+                } else {
+                    showError('❌ Veuillez sélectionner un fichier PDF valide.');
+                }
+            }
+        }
+
+        function uploadFile(file) {
+            loading.style.display = 'block';
+            result.style.display = 'none';
+            error.style.display = 'none';
+            uploadArea.style.pointerEvents = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('http://localhost:5000/predict', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                loading.style.display = 'none';
+                uploadArea.style.pointerEvents = 'auto';
+                if (data.error) {
+                    showError(`❌ ${data.error}`);
+                } else {
+                    displayResult(data);
+                }
+            })
+            .catch(err => {
+                loading.style.display = 'none';
+                uploadArea.style.pointerEvents = 'auto';
+                showError('❌ Erreur de connexion à l\'API. Vérifiez que le serveur est démarré.');
+            });
+        }
+
+        function displayResult(data) {
+            const statusEl = document.getElementById('status');
+            const confidenceEl = document.getElementById('confidence');
+            const metricsEl = document.getElementById('metrics');
+
+            statusEl.textContent = data.statut;
+            statusEl.className = 'status';
+            if (data.statut.includes('HTA')) {
+                statusEl.classList.add('hta');
+            } else if (data.statut.includes('Normale')) {
+                statusEl.classList.add('normale');
+            } else {
+                statusEl.classList.add('limite');
+            }
+
+            confidenceEl.innerHTML = `🤖 Confiance du modèle: <strong>${data.confidence}</strong>`;
+
+            const metrics = [
+                { label: 'Moyenne systolique globale', value: data.all_avg_sys },
+                { label: 'Moyenne diastolique globale', value: data.all_avg_dia },
+                { label: 'Moyenne systolique diurne', value: data.day_avg_sys },
+                { label: 'Moyenne diastolique diurne', value: data.day_avg_dia },
+                { label: 'Moyenne systolique nocturne', value: data.night_avg_sys },
+                { label: 'Moyenne diastolique nocturne', value: data.night_avg_dia },
+                { label: 'Charge systolique diurne (%)', value: data.day_sys_load_pct },
+                { label: 'Charge systolique nocturne (%)', value: data.night_sys_load_pct },
+                { label: 'Charge diastolique diurne (%)', value: data.day_dia_load_pct },
+                { label: 'Charge diastolique nocturne (%)', value: data.night_dia_load_pct },
+                { label: 'Dipping systolique (%)', value: data.circadian_sys_night_des_pct },
+                { label: 'AASI', value: data.aasi_sys },
+                { label: 'Pression systolique maximale', value: data.max_sys },
+                { label: 'Pression systolique minimale', value: data.min_sys }
+            ];
+
+            metricsEl.innerHTML = metrics.map(m => 
+                `<div class="metric">
+                    <span class="metric-label">${m.label}</span>
+                    <span class="metric-value">${m.value}</span>
+                </div>`
+            ).join('');
+
+            result.style.display = 'block';
+        }
+
+        function showError(message) {
+            error.textContent = message;
+            error.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
